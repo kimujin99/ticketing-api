@@ -17,4 +17,10 @@ public class RedisTestService {
     public String getValue(String key) {
         return redisTemplate.opsForValue().get(key);
     }
+
+    public String deleteValue(String key) {
+        String value = redisTemplate.opsForValue().get(key);
+        redisTemplate.delete(key);
+        return value;
+    }
 }
