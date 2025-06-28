@@ -43,16 +43,12 @@ public class TicketingService {
 
         // 현재 순번 구하기 (index + 1)
         int position = queueList.indexOf(queueToken) + 1;
+        String tokenAtFirst = redisTemplate.opsForList().index(QUEUE_KEY, 0);
         boolean enterable = false;
 
-        // 순번 1이면 입장 가능 처리
-        if (position == 1) {
-            String tokenAtFirst = redisTemplate.opsForList().leftPop(QUEUE_KEY);
-
-            if(tokenAtFirst != null) {
-                if (tokenAtFirst.equals(queueToken)) enterable = true;
-                else redisTemplate.opsForList().leftPush(QUEUE_KEY, tokenAtFirst);
-            }
+        if (position == 1 && tokenAtFirst.equals(queueToken)) {
+            redisTemplate.opsForList().leftPop(QUEUE_KEY);
+            enterable = true;
         }
 
         return new QueuePositionResponse(queueToken, position, enterable);
