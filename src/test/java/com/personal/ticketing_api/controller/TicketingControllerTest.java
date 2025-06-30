@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
 @AutoConfigureMockMvc
 @SpringBootTest
 public class TicketingControllerTest {
@@ -27,7 +27,7 @@ public class TicketingControllerTest {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @AfterAll
+    @AfterEach
     void tearDown() {
         redisTemplate.delete("ticketingQueue");
     }
@@ -100,8 +100,8 @@ public class TicketingControllerTest {
                 mockMvc.perform(get("/ticket/position/" + queueToken2))
                         .andExpect(status().isOk())
                         .andExpect(jsonPath("$.queueToken").value(queueToken2))
-                        .andExpect(jsonPath("$.position").value(2))
-                        .andExpect(jsonPath("$.enterable").value(false));
+                        .andExpect(jsonPath("$.position").value(1))
+                        .andExpect(jsonPath("$.enterable").value(true));
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
@@ -145,16 +145,11 @@ public class TicketingControllerTest {
             final int idx = i;
             executor.execute(() -> {
                 try {
-                    String response = mockMvc.perform(get("/ticket/position/" + tokens[idx]))
+                    mockMvc.perform(get("/ticket/position/" + tokens[idx]))
                             .andExpect(status().isOk())
-                            .andReturn().getResponse().getContentAsString();
-
-                    String queueToken = JsonPath.read(response, "$.queueToken");
-                    int position = JsonPath.read(response, "$.position");
-
-                    assertThat(queueToken).isEqualTo(tokens[idx]);
-                    assertThat(position).isBetween(1, 2);
-
+                            .andExpect(jsonPath("$.queueToken").value(tokens[idx]))
+                            .andExpect(jsonPath("$.position").value(1))
+                            .andExpect(jsonPath("$.enterable").value(true));
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
