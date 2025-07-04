@@ -10,6 +10,8 @@ Redis 기반 대기열 시스템으로, 사용자 순번 조회 및 입장, 퇴�
 - [기술 스택](#기술-스택)
 - [API 명세](#api-명세)
 - [프로젝트 구조](#프로젝트-구조)
+- [트러블 슈팅](#트러블-슈팅)
+- [기타 정보](#기타-정보)
 
 ---
 
@@ -62,3 +64,76 @@ src/main/java/com/personal/ticketing_api/
 src/test/java/com/personal/ticketing_api/
 └── controller/
 ```
+
+---
+
+## 트러블 슈팅
+### 📌 글로벌 예외 처리 클래스 생성 후, Swagger 오류 발생
+
+- **상황**  
+  <img src="https://github.com/user-attachments/assets/499e561b-74f6-4a89-9883-5e2db21c884b" width="500" />
+
+- **발생 로그**
+  ```
+  Resolved [jakarta.servlet.ServletException: Handler dispatch failed: java.lang.NoSuchMethodError: 'void org.springframework.web.method.ControllerAdviceBean.<init>(java.lang.Object)']
+  ```
+
+- **원인**  
+`@RestControllerAdvice` 추가 후 발생.  
+Spring Boot 버전과 Swagger 라이브러리 버전이 맞지 않아 jakarta.servlet 충돌로 발생.
+
+- **해결**  
+Spring Boot 버전을 '3.2.6'으로 하향하여 해결.  
+(기존)  
+`'org.springframework.boot' version '3.5.3'`  
+`implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'`
+
+<br>
+
+### 📌 동시성 테스트 진행중, 각 스레드에서 500에러 발생
+
+- **상황**  
+MockMvc 기반 동시성 테스트 진행 중, 각 스레드에서 Status expected:<200> but was:<500> 에러 발생.
+
+- **발생 로그**
+  ```
+  Exception in thread "pool-3-thread-2" java.lang.AssertionError: Status expected:<200> but was:<500>
+  	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:59)
+  	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:122)
+  	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:637)
+  	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+  	at com.personal.ticketing_api.controller.TicketingControllerTest.lambda$testSequentialEnterAndPositionCheck$1(TicketingControllerTest.java:101)
+  	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+  	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+  	at java.base/java.lang.Thread.run(Thread.java:1583)
+  Exception in thread "pool-3-thread-1" java.lang.AssertionError: Status expected:<200> but was:<500>
+  	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:59)
+  	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:122)
+  	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:637)
+  	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+  	at com.personal.ticketing_api.controller.TicketingControllerTest.lambda$testSequentialEnterAndPositionCheck$0(TicketingControllerTest.java:87)
+  	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+  	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+  	at java.base/java.lang.Thread.run(Thread.java:1583)
+  ```
+
+- **원인**  
+  ```java
+  List<?> result = redisTemplate.execute(redisScript, List.of(QUEUE_KEY), queueToken);
+  
+  Long positionLong = (Long) result.get(0);
+  Boolean enterable = (Boolean) result.get(1);
+  ```
+  Lua의 boolean이 자바에선 Long(1 또는 0)으로 매핑되어 `InvocationTargetException` 발생
+
+- **해결**  
+  ```java
+	Long enterableLong = (Long) result.get(1);
+	boolean enterable = enterableLong == 1L;
+  ```
+  Long으로 받아 boolean으로 캐스팅하여 해결
+  
+---
+
+## 기타 정보
+- **Velog** : https://velog.io/@kimujin99/series/Spring-Redis-%ED%8B%B0%EC%BC%93%ED%8C%85-%EB%8C%80%EA%B8%B0%EC%97%B4-API
